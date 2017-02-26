@@ -109,7 +109,7 @@ function fish_prompt
   _print_in_color "\n"(_pwd_with_tilde) blue
 
   if _in_git_directory
-    _print_in_color " "(_git_branch_name_or_revision) 242
+    _print_in_color " "(_git_branch_name_or_revision) 6C6C6C
     _print_in_color " "(_git_upstream_status) cyan
   end
 
@@ -117,3 +117,5 @@ function fish_prompt
 
   _print_in_color "\n❯ " (_prompt_color_for_status $last_status)
 end
+
+function fish_mode_prompt; end
