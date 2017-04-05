@@ -6,43 +6,23 @@ function _in_git_directory
   git rev-parse --git-dir > /dev/null 2>&1
 end
 
-function _git_branch_name_or_revision
-  set -l branch (git symbolic-ref HEAD ^ /dev/null | sed -e 's|^refs/heads/||')
-  set -l revision (git rev-parse HEAD ^ /dev/null | cut -b 1-7)
+function _set_git_prompt
+  set -g __fish_git_prompt_color 6C6C6C
 
-  if test (count $branch) -gt 0
-    echo $branch
-  else
-    echo $revision
-  end
+  set -g __fish_git_prompt_showdirtystate true
+  set -g __fish_git_prompt_char_stateseparator ''
+
+  set -g __fish_git_prompt_showupstream name
+  set -g __fish_git_prompt_color_upstream cyan
+  set -g __fish_git_prompt_char_upstream_prefix ''
+  set -g __fish_git_prompt_char_upstream_equal ''
+  set -g __fish_git_prompt_char_upstream_ahead ' ⇡'
+  set -g __fish_git_prompt_char_upstream_behind ' ⇣'
+  set -g __fish_git_prompt_char_upstream_diverged ' ⇡⇣'
 end
 
-function _git_upstream_configured
-  git rev-parse --abbrev-ref @"{u}" > /dev/null 2>&1
-end
-
-function _git_behind_upstream
-  test (git rev-list --right-only --count HEAD...@"{u}" ^ /dev/null) -gt 0
-end
-
-function _git_ahead_of_upstream
-  test (git rev-list --left-only --count HEAD...@"{u}" ^ /dev/null) -gt 0
-end
-
-function _git_upstream_status
-  set -l arrows
-
-  if _git_upstream_configured
-    if _git_behind_upstream
-      set arrows "$arrows⇣"
-    end
-
-    if _git_ahead_of_upstream
-      set arrows "$arrows⇡"
-    end
-  end
-
-  echo $arrows
+function _ssh_hostname
+  echo $USER"@"(hostname | cut -d . -f1)
 end
 
 function _cmd_duration_days
@@ -76,14 +56,19 @@ end
 function _cmd_duration
   set -l duration ""
 
-  if test (expr $CMD_DURATION / 1000) -gt 5
-    set duration "$duration"(_cmd_duration_days)
-    set duration "$duration"(_cmd_duration_hours)
-    set duration "$duration"(_cmd_duration_mins)
-    set duration "$duration"(_cmd_duration_secs)
-  end
+  set duration "$duration"(_cmd_duration_days)
+  set duration "$duration"(_cmd_duration_hours)
+  set duration "$duration"(_cmd_duration_mins)
+  set duration "$duration"(_cmd_duration_secs)
 
   echo $duration
+end
+
+function _visual_prompt_len
+  set -l prompt_info $argv[1]
+  set prompt_info (string replace -ra -- '\x1b.*?[mGKH]' '' $prompt_info)
+  set -l prompt_info_len (string length $prompt_info)
+  echo $prompt_info_len
 end
 
 function _print_in_color
@@ -104,20 +89,35 @@ function _prompt_color_for_status
 end
 
 function fish_prompt
-  set -l last_status $status
-
-  _print_in_color "\n"(_pwd_with_tilde) blue
-
+  set -l pwd_piece (_pwd_with_tilde)
+ 
+  set -l git_piece ""
   if _in_git_directory
-    _print_in_color " "(_git_branch_name_or_revision) 6C6C6C
-
-    set -l git_upstream_status (_git_upstream_status)
-    if test -n $git_upstream_status
-      _print_in_color " $git_upstream_status" cyan
-    end
+    _set_git_prompt
+    set git_piece (__fish_git_prompt)
   end
 
-  _print_in_color " "(_cmd_duration) yellow
+  set -l ssh_piece ""
+  if set -q SSH_CONNECTION
+    set ssh_piece " "(_ssh_hostname)
+  end
 
+  set -l dur_piece ""
+  if test $CMD_DURATION -gt 5000
+    set dur_piece " "(_cmd_duration)
+  end
+
+  set -l info_line "$pwd_piece$git_piece$ssh_piece$dur_piece"
+  set -l prompt_len (_visual_prompt_len $info_line)
+  if test $prompt_len -gt $COLUMNS
+    set pwd_piece (prompt_pwd)
+  end
+
+  _print_in_color "\n$pwd_piece" blue
+  printf $git_piece
+  _print_in_color $ssh_piece 6C6C6C
+  _print_in_color $dur_piece yellow
+
+  set -l last_status $status
   _print_in_color "\n❯ " (_prompt_color_for_status $last_status)
 end
